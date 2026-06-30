@@ -49,6 +49,7 @@ def get_files(upload_dir: str) -> list:
             for name in names
             if not name.startswith('.') and os.path.splitext(name)[1][1:].lower() in allowed_extensions
         ]
+    files = sorted(files)
 
     return files
 
