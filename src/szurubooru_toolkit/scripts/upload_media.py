@@ -40,7 +40,7 @@ def get_files(upload_dir: str) -> list:
     files_raw = list(
         filter(None, [glob(upload_dir + '/**/*.' + extension, recursive=True) for extension in allowed_extensions]),
     )
-    files = [y for x in files_raw for y in x]
+    files = sorted([y for x in files_raw for y in x])
 
     return files
 
