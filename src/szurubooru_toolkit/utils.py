@@ -140,9 +140,9 @@ def convert_rating(rating: str) -> str:
     switch = {
         'Safe': 'safe',
         'safe': 'safe',
-        's': 'safe',
         'g': 'safe',
         'general': 'safe',
+        's': 'sketchy',
         'Questionable': 'sketchy',
         'questionable': 'sketchy',
         'q': 'sketchy',
