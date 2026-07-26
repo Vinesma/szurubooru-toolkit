@@ -14,6 +14,8 @@ force_single_line = true
 
 [tool.uv]
 package = true
+# onnxruntime and onnxruntime-gpu both ship the `onnxruntime` module
+conflicts = [[{ extra = "wd-tagger" }, { extra = "wd-tagger-cuda" }]]
 
 [project]
 authors = [
@@ -44,6 +46,13 @@ keywords = [
 [project.optional-dependencies]
 wd-tagger = [
     "onnxruntime<2.0.0,>=1.19.0",
+    "numpy<3.0.0,>=1.23.5",
+    "huggingface-hub<1.0.0,>=0.23.0",
+]
+# GPU variant: CUDA/cuDNN runtimes come from PyPI, the host only needs the
+# NVIDIA driver (in Docker: the NVIDIA Container Toolkit).
+wd-tagger-cuda = [
+    "onnxruntime-gpu[cuda,cudnn]<2.0.0,>=1.21.0",
     "numpy<3.0.0,>=1.23.5",
     "huggingface-hub<1.0.0,>=0.23.0",
 ]

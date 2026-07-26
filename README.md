@@ -58,7 +58,7 @@ The WD tagger (local machine learning tagging) and Pixiv support are optional ex
 * `pip install "szurubooru-toolkit[pixiv]"` for Pixiv metadata support
 * `pip install "szurubooru-toolkit[wd-tagger,pixiv]"` for both
 
-Alternatively, you can clone the package from GitHub and set everything up with [uv](https://docs.astral.sh/uv/). In the root directory of this repository, execute `uv sync` (add `--all-extras` for WD tagger and Pixiv support).
+Alternatively, you can clone the package from GitHub and set everything up with [uv](https://docs.astral.sh/uv/). In the root directory of this repository, execute `uv sync` (add `--extra wd-tagger --extra pixiv` for WD tagger and Pixiv support).
 
 ### Docker Instructions
 If you would like to run the toolkit in a Docker container instead, follow the
@@ -72,8 +72,14 @@ pick the smallest one that covers what you enable in `config.toml`:
 | --- | --- |
 | `reluce/szurubooru-toolkit:latest` | none (slim, default) |
 | `reluce/szurubooru-toolkit:latest-wd-tagger` | WD tagger (ONNX Runtime + ffmpeg) |
+| `reluce/szurubooru-toolkit:latest-wd-tagger-cuda` | WD tagger with CUDA acceleration (large image) |
 | `reluce/szurubooru-toolkit:latest-pixiv` | Pixiv metadata support |
-| `reluce/szurubooru-toolkit:latest-all` | everything |
+| `reluce/szurubooru-toolkit:latest-all` | WD tagger (CPU) + Pixiv |
+
+The `-wd-tagger-cuda` image needs an NVIDIA GPU exposed to the container: install
+the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+on the host (driver 580+ / CUDA 13), uncomment `gpus: all` in `docker-compose.yml`
+and set `wd_tagger_providers = ["CUDAExecutionProvider"]` in `config.toml`.
 
 Use the matching tag in your `docker-compose.yml` — e.g. `-wd-tagger` if you set
 `wd_tagger = true`. Every tag is also published per version, e.g. `:2.0.0`,
@@ -83,7 +89,9 @@ If the mounted volumes should not be owned by root (e.g. on NFS mounts or with
 rootless containers), set the `PUID` and `PGID` environment variables (see the
 commented block in `docker-compose.yml`): the container then creates a matching
 user on startup, chowns its working directory and runs the cron jobs as that
-user instead of root.
+user instead of root. Cron jobs using the documented `>/proc/1/fd/1 2>&1`
+redirect keep working: the container rewrites it to an internal log file that
+the non-root user can write and streams it to the container output.
 
 <details>
 1. Copy `docker-compose.yml` to the location where you want to run the toolkit.
@@ -162,7 +170,7 @@ Post safety is detected automatically: booru matches carry over their source rat
 
 Videos are tagged as well if ffmpeg is installed (`wd_tagger_videos`): frames are sampled across the duration — longer videos get more frames — and their scores averaged, so tags that only appear in a single frame don't stick.
 
-Inference runs on the CPU by default. For hardware acceleration, set `wd_tagger_providers` in `config.toml`, e.g. `["CoreMLExecutionProvider"]` on Apple Silicon or `["CUDAExecutionProvider"]` on NVIDIA GPUs (requires the `onnxruntime-gpu` package). Unavailable providers fall back to the CPU.
+Inference runs on the CPU by default. For hardware acceleration, set `wd_tagger_providers` in `config.toml`, e.g. `["CoreMLExecutionProvider"]` on Apple Silicon or `["CUDAExecutionProvider"]` on NVIDIA GPUs (install the `wd-tagger-cuda` extra instead of `wd-tagger`, or use the `-wd-tagger-cuda` Docker image). Unavailable providers fall back to the CPU.
 
 ## :page_with_curl: Commands
 The CLI is installed as `szuru-toolkit` and under the shorter alias `szuructl` — both are identical.

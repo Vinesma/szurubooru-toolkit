@@ -8,6 +8,9 @@ services:
     #environment:
     #  - PUID=1000
     #  - PGID=1000
+    # Expose the GPU for the -wd-tagger-cuda image (requires the NVIDIA
+    # Container Toolkit on the host)
+    #gpus: all
     volumes:
       - ./crontab:/etc/cron.d/crontab
       - ./config.toml:/szurubooru-toolkit/config.toml
