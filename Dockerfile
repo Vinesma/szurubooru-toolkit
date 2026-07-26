@@ -4,11 +4,14 @@ FROM python:3.11-slim
 
 ARG WORKDIR
 # Optional dependency extras to install, passed straight to `uv sync`.
+# Note: wd-tagger and wd-tagger-cuda conflict, so `--all-extras` doesn't work;
+# list extras explicitly.
 # Examples:
-#   EXTRAS=""                    -> slim, no extras (default)
-#   EXTRAS="--extra wd-tagger"   -> local WD tagger (ONNX Runtime + ffmpeg)
-#   EXTRAS="--extra pixiv"       -> Pixiv metadata support
-#   EXTRAS="--all-extras"        -> everything
+#   EXTRAS=""                              -> slim, no extras (default)
+#   EXTRAS="--extra wd-tagger"             -> local WD tagger (ONNX Runtime + ffmpeg)
+#   EXTRAS="--extra wd-tagger-cuda"        -> WD tagger with CUDA acceleration
+#   EXTRAS="--extra pixiv"                 -> Pixiv metadata support
+#   EXTRAS="--extra wd-tagger --extra pixiv" -> everything (CPU tagger)
 ARG EXTRAS=""
 
 # Don't buffer `stdout`:
@@ -23,7 +26,7 @@ RUN apt-get update && apt-get install -y \
   libffi-dev \
   python3-dev \
   cron \
-  && case " $EXTRAS " in *"wd-tagger"*|*"--all-extras"*) apt-get install -y ffmpeg ;; esac \
+  && case " $EXTRAS " in *"wd-tagger"*) apt-get install -y ffmpeg ;; esac \
   && rm -rf /var/lib/apt/lists/*
 RUN pip3 install --upgrade pip && \
   pip3 install "uv>=0.11.6"
@@ -33,6 +36,10 @@ COPY . .
 
 COPY uv.lock pyproject.toml README.md ./
 RUN uv sync --frozen --no-dev $EXTRAS
+
+# The environment is fully baked above; without this, every `uv run` (each
+# cron job) re-syncs against the lockfile and uninstalls the extras.
+ENV UV_NO_SYNC=1
 
 RUN chmod +x /szurubooru-toolkit/entrypoint.sh
 CMD ["/szurubooru-toolkit/entrypoint.sh"]
