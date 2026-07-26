@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import urllib.parse
 from base64 import b64encode
 from concurrent.futures import ThreadPoolExecutor
@@ -20,6 +21,12 @@ POST_FIELDS_OXIBOORU = POST_FIELDS.replace('checksumMD5', 'checksumMd5')
 
 # How many result pages to fetch concurrently on large queries
 PAGE_FETCH_WORKERS = 8
+
+# Gateway/overload statuses a reverse proxy or busy server returns transiently;
+# a reverse search on a large booru can easily outlive a proxy's read timeout.
+TRANSIENT_STATUS_CODES = (429, 502, 503, 504)
+TRANSIENT_RETRIES = 3
+TRANSIENT_BACKOFF = 5  # seconds, multiplied by the attempt number
 
 
 _TAG_EXISTS_DESCRIPTIONS = (
@@ -214,10 +221,24 @@ class Szurubooru:
         Sends a request to the szurubooru API and returns the parsed JSON response.
 
         Raises a typed SzurubooruError subclass if the API responded with an error
-        resource ({name, title, description}) or a non-2xx status.
+        resource ({name, title, description}) or a non-2xx status. Transient gateway
+        errors and transport failures are retried before giving up.
         """
 
-        response = self.client.request(method, path, **kwargs)
+        for attempt in range(1, TRANSIENT_RETRIES + 1):
+            try:
+                response = self.client.request(method, path, **kwargs)
+            except httpx.TransportError as e:
+                if attempt == TRANSIENT_RETRIES:
+                    raise
+                logger.debug(f'{method} {path} failed ({e}), retrying in {attempt * TRANSIENT_BACKOFF}s...')
+            else:
+                if response.status_code not in TRANSIENT_STATUS_CODES or attempt == TRANSIENT_RETRIES:
+                    break
+                logger.debug(
+                    f'{method} {path} returned HTTP{response.status_code}, retrying in {attempt * TRANSIENT_BACKOFF}s...'
+                )
+            time.sleep(attempt * TRANSIENT_BACKOFF)
 
         try:
             data = response.json()
@@ -243,7 +264,7 @@ class Szurubooru:
             raise SzurubooruApiError(name, description)
 
         if response.is_error:
-            raise SzurubooruApiError(f'HTTP{response.status_code}', response.text)
+            raise SzurubooruApiError(f'HTTP{response.status_code}', response.text[:200])
 
         # A 2xx with a non-JSON body means a proxy answered instead of szurubooru
         # (e.g. an nginx error page); surface it instead of returning None.

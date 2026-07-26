@@ -3,6 +3,7 @@ import json
 import httpx
 import pytest
 
+from szurubooru_toolkit import szurubooru
 from szurubooru_toolkit.szurubooru import Szurubooru
 from szurubooru_toolkit.szurubooru import SzurubooruApiError
 from szurubooru_toolkit.szurubooru import Tag
@@ -529,3 +530,25 @@ def test_non_json_success_raises_api_error():
         client.szuru.upload_temporary_file(b'fake-image', 'png')
 
     assert 'proxy error' in str(exc_info.value)
+
+
+def test_transient_gateway_error_is_retried(monkeypatch):
+    # A proxy 504 during a slow reverse search shouldn't skip the post (#87)
+    monkeypatch.setattr(szurubooru.time, 'sleep', lambda _: None)
+    responses = [
+        httpx.Response(504, text='<html>gateway timeout</html>'),
+        httpx.Response(200, json={'exactPost': None, 'similarPosts': []}),
+    ]
+
+    client = RecordingClient(lambda request: responses.pop(0))
+    assert client.szuru.reverse_search('token') == {'exactPost': None, 'similarPosts': []}
+    assert len(client.requests) == 2
+
+
+def test_transient_gateway_error_gives_up_after_retries(monkeypatch):
+    monkeypatch.setattr(szurubooru.time, 'sleep', lambda _: None)
+    client = RecordingClient(lambda request: httpx.Response(504, text='<html>gateway timeout</html>'))
+
+    with pytest.raises(SzurubooruApiError):
+        client.szuru.reverse_search('token')
+    assert len(client.requests) == szurubooru.TRANSIENT_RETRIES
