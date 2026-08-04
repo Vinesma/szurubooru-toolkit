@@ -24,7 +24,10 @@ PAGE_FETCH_WORKERS = 8
 
 # Gateway/overload statuses a reverse proxy or busy server returns transiently;
 # a reverse search on a large booru can easily outlive a proxy's read timeout.
-TRANSIENT_STATUS_CODES = (429, 502, 503, 504)
+# 500 is included because szurubooru answers with a bare 500 when concurrent
+# workers auto-create the same new tag (UniqueViolation on tag_name); the losing
+# request is rolled back server-side, so retrying it is safe and succeeds (#90).
+TRANSIENT_STATUS_CODES = (429, 500, 502, 503, 504)
 TRANSIENT_RETRIES = 3
 TRANSIENT_BACKOFF = 5  # seconds, multiplied by the attempt number
 
